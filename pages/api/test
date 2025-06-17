@@ -1,0 +1,53 @@
+// analyze.js
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+const genAI = new GoogleGenerativeAI("AIzaSyAUgrPIOR1Kokk1f29rvxhkIZom9mToA_o");
+const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const { resume, jd } = req.body;
+
+  if (!resume) {
+    return res.status(400).json({ error: "Resume text is required" });
+  }
+
+  const prompt = `
+Analyze the following resume:
+"""${resume}"""
+
+${jd ? `Compare it with this job description:
+"""${jd}"""` : ""}
+
+Return the following structured JSON only (no explanation):
+{
+  "summary": "...",
+  "strengths": ["..."],
+  "weaknesses": ["..."],
+  "skills": ["..."],
+  "match_score": 0-100,
+  "suggestions": ["..."]
+}`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+
+    console.log("Gemini raw output:", text);
+
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch (err) {
+      return res.status(500).json({ error: "Gemini returned invalid JSON.", raw: text });
+    }
+
+    res.status(200).json(json);
+  } catch (err) {
+    console.error("Gemini API error:", err);
+    res.status(500).json({ error: "Failed to analyze resume." });
+  }
+}
