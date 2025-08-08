@@ -1,4 +1,4 @@
-import { Bar, Doughnut, Radar } from "react-chartjs-2";
+import { Bar, Radar } from "react-chartjs-2";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { useState } from "react";
@@ -36,124 +36,275 @@ export default function Results({ data }) {
   if (!data) return null;
 
   /* ────────────────────────────
-     Enhanced PDF generation with progress tracking
+     Professional PDF generation with proper layout
      ──────────────────────────── */
   const handleDownload = async () => {
     setIsGeneratingPDF(true);
     setDownloadProgress(0);
-
-    const original = document.getElementById("results-container");
-    if (!original) { 
-      console.error("results-container not found"); 
-      setIsGeneratingPDF(false); 
-      return; 
-    }
-
-    let tempContainer;
 
     try {
       // Progress: 10%
       setDownloadProgress(10);
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      /* Wait for web‑fonts */
-      if (document.fonts && document.fonts.ready) await document.fonts.ready;
-      
+      // Initialize PDF
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 25;
+      const contentW = pageW - (2 * margin);
+      let currentY = margin;
+
       // Progress: 20%
       setDownloadProgress(20);
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      /* Capture every <canvas> (charts) as PNG with white background */
-      const chartImages = Array.from(original.querySelectorAll("canvas")).map((cv) => {
-        const off = document.createElement("canvas");
-        off.width = cv.width;     
-        off.height = cv.height;
-        const ctx = off.getContext("2d");
-        ctx.fillStyle = "#ffffff"; 
-        ctx.fillRect(0, 0, off.width, off.height);
-        ctx.drawImage(cv, 0, 0);
-        return off.toDataURL("image/png", 1.0);
-      });
+      // Helper functions
+      const addText = (text, fontSize = 12, style = 'normal', color = [0, 0, 0]) => {
+        pdf.setTextColor(...color);
+        pdf.setFontSize(fontSize);
+        pdf.setFont('helvetica', style);
+        const lines = pdf.splitTextToSize(text, contentW);
+        pdf.text(lines, margin, currentY);
+        currentY += fontSize * 0.5 * lines.length + 5;
+        return lines.length;
+      };
+
+      const addSection = (title, fontSize = 16) => {
+        if (currentY > pageH - 40) {
+          pdf.addPage();
+          currentY = margin;
+        }
+        currentY += 10;
+        pdf.setTextColor(30, 58, 138); // Navy blue
+        pdf.setFontSize(fontSize);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(title, margin, currentY);
+        
+        // Add underline
+        const textWidth = pdf.getTextWidth(title);
+        pdf.setDrawColor(59, 130, 246);
+        pdf.setLineWidth(1);
+        pdf.line(margin, currentY + 2, margin + textWidth, currentY + 2);
+        
+        currentY += fontSize * 0.8 + 8;
+      };
+
+      const addBulletPoint = (text, indent = 0) => {
+        const bulletX = margin + indent;
+        const textX = bulletX + 5;
+        
+        pdf.setTextColor(0, 0, 0);
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text('•', bulletX, currentY);
+        
+        const lines = pdf.splitTextToSize(text, contentW - indent - 5);
+        pdf.text(lines, textX, currentY);
+        currentY += 10 * 0.5 * lines.length + 3;
+      };
+
+      const checkPageSpace = (needed = 20) => {
+        if (currentY > pageH - needed) {
+          pdf.addPage();
+          currentY = margin;
+        }
+      };
+
+      // Progress: 30%
+      setDownloadProgress(30);
+
+      // Header
+      pdf.setFillColor(30, 58, 138);
+      pdf.rect(0, 0, pageW, 30, 'F');
+      
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(24);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('HR RESUME ANALYSIS REPORT', margin, 20);
+      
+      currentY = 40;
+
+      // Date and metadata
+      pdf.setTextColor(100, 100, 100);
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, margin, currentY);
+      pdf.text('Confidential HR Document', pageW - margin - 40, currentY);
+      currentY += 15;
 
       // Progress: 40%
       setDownloadProgress(40);
-      await new Promise(resolve => setTimeout(resolve, 200));
 
-      /* Clone DOM & force print‑friendly styles */
-      tempContainer = original.cloneNode(true);
-      Object.assign(tempContainer.style, {
-        position: "absolute", 
-        top: "-9999px", 
-        left: "-9999px",
-        background: "#ffffff", 
-        color: "#000000", 
-        padding: "20px",
-        fontFamily: "Arial, sans-serif",
-      });
+      // Executive Summary
+      addSection('EXECUTIVE SUMMARY', 18);
+      addText(data.summary || 'Comprehensive resume analysis completed.', 12, 'normal');
+      currentY += 5;
 
-      /* Replace canvases with captured images */
-      tempContainer.querySelectorAll("canvas").forEach((cv, i) => {
-        const img = document.createElement("img");
-        img.src = chartImages[i];
-        img.width = cv.width;  
-        img.height = cv.height;
-        cv.replaceWith(img);
-      });
+      // Overall Score (Large centered display)
+      const overallScore = getOverallScore();
+      const recommendation = getRecommendation(overallScore);
+      
+      checkPageSpace(40);
+      pdf.setFillColor(245, 245, 245);
+      pdf.rect(margin, currentY, contentW, 35, 'F');
+      
+      pdf.setTextColor(30, 58, 138);
+      pdf.setFontSize(36);
+      pdf.setFont('helvetica', 'bold');
+      const scoreText = `${overallScore}%`;
+      const scoreWidth = pdf.getTextWidth(scoreText);
+      pdf.text(scoreText, (pageW - scoreWidth) / 2, currentY + 20);
+      
+      pdf.setTextColor(100, 100, 100);
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'normal');
+      const recText = `Overall Score - ${recommendation.text}`;
+      const recWidth = pdf.getTextWidth(recText);
+      pdf.text(recText, (pageW - recWidth) / 2, currentY + 30);
+      
+      currentY += 45;
 
-      /* Force readable colors/fonts on every descendant */
-      tempContainer.querySelectorAll("*").forEach(el => {
-        el.style.setProperty("color", "#000", "important");
-        el.style.setProperty("background-color", "#fff", "important");
-        el.style.setProperty("font-family", "Arial, sans-serif", "important");
+      // Progress: 50%
+      setDownloadProgress(50);
+
+      // Key Metrics in a table format
+      addSection('KEY METRICS', 16);
+      
+      const metrics = [
+        ['Job Match Score', `${data.match_score || 0}%`],
+        ['Skills Identified', `${data.skills?.length || 0} skills`],
+        ['Experience Years', `${data.experience_years || 'N/A'} years`],
+        ['Education Level', data.education_level || 'Bachelor'],
+        ['Technical Score', `${data.technical_score || 75}%`],
+        ['Communication Score', `${data.communication_score || 80}%`],
+        ['Leadership Score', `${data.leadership_score || 70}%`],
+        ['Interview Readiness', data.interview_readiness || 'Medium']
+      ];
+
+      metrics.forEach(([label, value], index) => {
+        if (index % 2 === 0) {
+          pdf.setFillColor(250, 250, 250);
+          pdf.rect(margin, currentY - 3, contentW, 8, 'F');
+        }
+        
+        pdf.setTextColor(0, 0, 0);
+        pdf.setFontSize(11);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(label, margin + 5, currentY + 2);
+        
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(value, margin + contentW - 40, currentY + 2);
+        
+        currentY += 8;
       });
+      currentY += 10;
 
       // Progress: 60%
       setDownloadProgress(60);
-      await new Promise(resolve => setTimeout(resolve, 200));
 
-      /* Push clone off‑screen so html2canvas can see it */
-      document.body.appendChild(tempContainer);
-      await new Promise(r => setTimeout(r, 400));
+      // Strengths
+      addSection('STRENGTHS', 16);
+      data.strengths?.forEach(strength => {
+        addBulletPoint(strength);
+      });
+      currentY += 5;
+
+      // Areas for Improvement
+      addSection('AREAS FOR IMPROVEMENT', 16);
+      data.weaknesses?.forEach(weakness => {
+        addBulletPoint(weakness);
+      });
+      currentY += 5;
 
       // Progress: 70%
       setDownloadProgress(70);
 
-      /* Rasterise with html2canvas (high‑res) */
-      const canvas = await html2canvas(tempContainer, {
-        backgroundColor: "#ffffff",
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        allowTaint: true,
-      });
-
-      // Progress: 85%
-      setDownloadProgress(85);
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-      /* Create PDF that fits A4 exactly */
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
-      const imgW  = canvas.width  * ratio;
-      const imgH  = canvas.height * ratio;
-      const img = canvas.toDataURL("image/jpeg", 0.9);  // Compress to 80% quality
-
-      let y = 0, remaining = imgH;
-      while (true) {
-        pdf.addImage(img, "PNG", 0, y, imgW, imgH);
-        remaining -= pageH;
-        if (remaining <= 0) break;
-        pdf.addPage();
-        y = remaining - imgH;
+      // Skills Breakdown
+      addSection('SKILLS BREAKDOWN', 16);
+      if (data.skills?.length > 0) {
+        let skillsText = '';
+        data.skills.slice(0, 15).forEach((skill, index) => {
+          skillsText += `${index + 1}. ${skill}   `;
+          if ((index + 1) % 3 === 0) skillsText += '\n';
+        });
+        addText(skillsText, 11, 'normal');
       }
+      currentY += 5;
+
+      // HR Recommendations
+      addSection('HR RECOMMENDATIONS', 16);
+      data.suggestions?.forEach(suggestion => {
+        addBulletPoint(suggestion);
+      });
+      currentY += 5;
+
+      // Progress: 80%
+      setDownloadProgress(80);
+
+      // Cultural Fit Assessment
+      if (data.cultural_fit_indicators?.length > 0) {
+        addSection('CULTURAL FIT ASSESSMENT', 16);
+        data.cultural_fit_indicators.forEach(indicator => {
+          addBulletPoint(indicator);
+        });
+        currentY += 5;
+      }
+
+      // Red Flags (if any)
+      if (data.red_flags?.length > 0 && data.red_flags.some(flag => flag.trim())) {
+        addSection('AREAS OF CONCERN', 16);
+        data.red_flags.forEach(flag => {
+          if (flag.trim()) addBulletPoint(flag);
+        });
+        currentY += 5;
+      }
+
+      // Progress: 90%
+      setDownloadProgress(90);
+
+      // Next Steps
+      if (data.next_steps?.length > 0) {
+        addSection('RECOMMENDED NEXT STEPS', 16);
+        data.next_steps.forEach(step => {
+          addBulletPoint(step);
+        });
+        currentY += 5;
+      }
+
+      // Final Recommendation Box
+      checkPageSpace(40);
+      const finalRec = data.hiring_recommendation || 'Hire';
+      let recColor = [34, 197, 94]; // Green
+      if (finalRec.includes('No Hire')) recColor = [239, 68, 68]; // Red
+      else if (finalRec.includes('Caution')) recColor = [245, 158, 11]; // Orange
+
+      pdf.setFillColor(...recColor);
+      pdf.rect(margin, currentY, contentW, 20, 'F');
+      
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      const finalText = `FINAL RECOMMENDATION: ${finalRec.toUpperCase()}`;
+      const finalWidth = pdf.getTextWidth(finalText);
+      pdf.text(finalText, (pageW - finalWidth) / 2, currentY + 13);
 
       // Progress: 95%
       setDownloadProgress(95);
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      /* Download */
+      // Footer on all pages
+      const totalPages = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.setTextColor(150, 150, 150);
+        pdf.setFontSize(8);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`HR Resume Analysis Report | Page ${i} of ${totalPages} | Generated ${new Date().toLocaleDateString()}`, 
+                 margin, pageH - 10);
+      }
+
+      // Download PDF
       pdf.save(`hr-analysis-report-${new Date().toISOString().split("T")[0]}.pdf`);
 
       // Progress: 100%
@@ -164,7 +315,6 @@ export default function Results({ data }) {
       console.error("PDF generation failed:", err);
       alert("PDF generation failed. Please try again.");
     } finally {
-      if (tempContainer) document.body.removeChild(tempContainer);
       setIsGeneratingPDF(false);
       setDownloadProgress(0);
     }
@@ -188,18 +338,20 @@ export default function Results({ data }) {
     return { text: "Not Recommended", class: "danger", icon: "x-circle-fill" };
   };
 
-  // Enhanced chart data
+  // Enhanced chart data with better colors for visibility
   const skillsChartData = {
     labels: data.skills?.slice(0, 8) || [],
     datasets: [{
       label: "Skill Proficiency",
       data: data.skills?.slice(0, 8).map(() => Math.floor(Math.random() * 40) + 60) || [],
       backgroundColor: [
-        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
-        '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'
+        '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
+        '#8B5CF6', '#06B6D4', '#84CC16', '#F97316'
       ],
       borderWidth: 2,
-      borderColor: '#fff'
+      borderColor: '#ffffff',
+      borderRadius: 6,
+      borderSkipped: false
     }]
   };
 
@@ -230,12 +382,12 @@ export default function Results({ data }) {
         data.teamwork_score || 78,
         data.adaptability_score || 82
       ],
-      backgroundColor: 'rgba(54, 162, 235, 0.2)',
-      borderColor: 'rgba(54, 162, 235, 1)',
-      pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+      backgroundColor: 'rgba(59, 130, 246, 0.2)',
+      borderColor: 'rgba(59, 130, 246, 1)',
+      pointBackgroundColor: 'rgba(59, 130, 246, 1)',
       pointBorderColor: '#fff',
       pointHoverBackgroundColor: '#fff',
-      pointHoverBorderColor: 'rgba(54, 162, 235, 1)'
+      pointHoverBorderColor: 'rgba(59, 130, 246, 1)'
     }]
   };
 
@@ -263,7 +415,7 @@ export default function Results({ data }) {
         >
           <div
             style={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #3b82f6 100%)',
               padding: '40px',
               borderRadius: '20px',
               boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)',
@@ -337,23 +489,23 @@ export default function Results({ data }) {
         
         .download-btn-hover:hover {
           transform: translateY(-3px) !important;
-          box-shadow: 0 8px 25px rgba(40, 167, 69, 0.4) !important;
+          box-shadow: 0 8px 25px rgba(30, 58, 138, 0.4) !important;
         }
         
         .metric-card:hover {
           transform: translateY(-5px);
-          box-shadow: 0 8px 25px rgba(31, 38, 135, 0.3);
+          box-shadow: 0 8px 25px rgba(30, 58, 138, 0.3);
         }
       `}</style>
 
       <div className="results-section" id="results-container">
         {/* Executive Summary Card */}
-        <div className="glassmorphism p-4 mb-4" style={{
+        <div className="glassmorphism p-5 mb-5" style={{
           background: 'rgba(255, 255, 255, 0.15)',
-          backdropFilter: 'blur(10px)',
+          backdropFilter: 'blur(15px)',
           border: '1px solid rgba(255, 255, 255, 0.2)',
-          borderRadius: '15px',
-          boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)'
+          borderRadius: '20px',
+          boxShadow: '0 12px 40px 0 rgba(31, 38, 135, 0.37)'
         }}>
           <div className="row align-items-center">
             <div className="col-md-8">
@@ -405,7 +557,7 @@ export default function Results({ data }) {
         </div>
 
         {/* Key Metrics Dashboard */}
-        <div className="row mb-4">
+        <div className="row mb-5">
           {[
             { icon: 'bullseye', color: 'info', value: `${data.match_score || 0}%`, label: 'Job Match' },
             { icon: 'tools', color: 'warning', value: data.skills?.length || 0, label: 'Skills Identified' },
@@ -414,11 +566,11 @@ export default function Results({ data }) {
           ].map((metric, index) => (
             <div key={index} className="col-md-3 mb-3">
               <div className="glassmorphism metric-card p-4 text-center h-100" style={{
-                background: 'rgba(255, 255, 255, 0.12)',
-                backdropFilter: 'blur(10px)',
+                background: 'rgba(255, 255, 255, 0.15)',
+                backdropFilter: 'blur(15px)',
                 border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '12px',
-                boxShadow: '0 4px 16px 0 rgba(31, 38, 135, 0.2)',
+                borderRadius: '16px',
+                boxShadow: '0 8px 25px 0 rgba(31, 38, 135, 0.25)',
                 transition: 'all 0.3s ease',
                 cursor: 'pointer'
               }}>
@@ -431,14 +583,14 @@ export default function Results({ data }) {
         </div>
 
         {/* Charts Section */}
-        <div className="row mb-4">
+        <div className="row mb-5">
           <div className="col-md-6 mb-3">
-            <div className="glassmorphism p-4 h-100" style={{
-              background: 'rgba(255, 255, 255, 0.12)',
-              backdropFilter: 'blur(10px)',
+            <div className="glassmorphism p-5 h-100" style={{
+              background: 'rgba(255, 255, 255, 0.15)',
+              backdropFilter: 'blur(15px)',
               border: '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: '12px',
-              boxShadow: '0 4px 16px 0 rgba(31, 38, 135, 0.2)'
+              borderRadius: '16px',
+              boxShadow: '0 8px 25px 0 rgba(31, 38, 135, 0.25)'
             }}>
               <h4 className="text-white mb-4" style={{ fontWeight: '600' }}>
                 <i className="bi bi-graph-up me-2"></i>
@@ -453,21 +605,45 @@ export default function Results({ data }) {
                     plugins: {
                       legend: { display: false },
                       tooltip: {
-                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        backgroundColor: 'rgba(30, 58, 138, 0.9)',
                         titleColor: '#fff',
-                        bodyColor: '#fff'
+                        bodyColor: '#fff',
+                        borderColor: '#3B82F6',
+                        borderWidth: 1,
+                        cornerRadius: 8,
+                        displayColors: false
                       }
                     },
                     scales: {
                       y: {
                         beginAtZero: true,
                         max: 100,
-                        ticks: { color: '#000000' },
-                        grid: { color: 'rgba(255,255,255,0.1)' }
+                        ticks: { 
+                          color: '#ffffff',
+                          font: { size: 12, weight: '600' },
+                          padding: 8
+                        },
+                        grid: { 
+                          color: 'rgba(255,255,255,0.15)',
+                          drawBorder: false
+                        },
+                        border: {
+                          display: false
+                        }
                       },
                       x: {
-                        ticks: { color: '#000000' },
-                        grid: { color: 'rgba(255,255,255,0.1)' }
+                        ticks: { 
+                          color: '#ffffff',
+                          font: { size: 11, weight: '500' },
+                          maxRotation: 45,
+                          minRotation: 0
+                        },
+                        grid: { 
+                          display: false
+                        },
+                        border: {
+                          display: false
+                        }
                       }
                     }
                   }}
@@ -476,12 +652,12 @@ export default function Results({ data }) {
             </div>
           </div>
           <div className="col-md-6 mb-3">
-            <div className="glassmorphism p-4 h-100" style={{
-              background: 'rgba(255, 255, 255, 0.12)',
-              backdropFilter: 'blur(10px)',
+            <div className="glassmorphism p-5 h-100" style={{
+              background: 'rgba(255, 255, 255, 0.15)',
+              backdropFilter: 'blur(15px)',
               border: '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: '12px',
-              boxShadow: '0 4px 16px 0 rgba(31, 38, 135, 0.2)'
+              borderRadius: '16px',
+              boxShadow: '0 8px 25px 0 rgba(31, 38, 135, 0.25)'
             }}>
               <h4 className="text-white mb-4" style={{ fontWeight: '600' }}>
                 <i className="bi bi-diagram-3 me-2"></i>
@@ -494,16 +670,40 @@ export default function Results({ data }) {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                      legend: { display: false }
+                      legend: { display: false },
+                      tooltip: {
+                        backgroundColor: 'rgba(30, 58, 138, 0.9)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        borderColor: '#3B82F6',
+                        borderWidth: 1,
+                        cornerRadius: 8,
+                        displayColors: false
+                      }
                     },
                     scales: {
                       r: {
                         beginAtZero: true,
                         max: 100,
-                        ticks: { color: '#fff', backdropColor: 'transparent' },
-                        grid: { color: 'rgba(255,255,255,0.2)' },
-                        angleLines: { color: 'rgba(255,255,255,0.2)' },
-                        pointLabels: { color: '#fff' }
+                        ticks: { 
+                          color: '#ffffff',
+                          backdropColor: 'transparent',
+                          font: { size: 11, weight: '600' },
+                          stepSize: 20
+                        },
+                        grid: { 
+                          color: 'rgba(255,255,255,0.15)',
+                          lineWidth: 1
+                        },
+                        angleLines: { 
+                          color: 'rgba(255,255,255,0.15)',
+                          lineWidth: 1
+                        },
+                        pointLabels: { 
+                          color: '#ffffff',
+                          font: { size: 12, weight: '600' },
+                          padding: 15
+                        }
                       }
                     }
                   }}
@@ -514,7 +714,7 @@ export default function Results({ data }) {
         </div>
 
         {/* Detailed Analysis */}
-        <div className="row mb-4">
+        <div className="row mb-5">
           {[
             { title: 'Strengths', items: data.strengths, color: 'success', icon: 'check-circle-fill' },
             { title: 'Areas for Improvement', items: data.weaknesses, color: 'warning', icon: 'exclamation-circle-fill' },
@@ -522,11 +722,11 @@ export default function Results({ data }) {
           ].map((section, index) => (
             <div key={index} className="col-md-4 mb-3">
               <div className="glassmorphism p-4 h-100" style={{
-                background: 'rgba(255, 255, 255, 0.12)',
-                backdropFilter: 'blur(10px)',
+                background: 'rgba(255, 255, 255, 0.15)',
+                backdropFilter: 'blur(15px)',
                 border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '12px',
-                boxShadow: '0 4px 16px 0 rgba(31, 38, 135, 0.2)'
+                borderRadius: '16px',
+                boxShadow: '0 8px 25px 0 rgba(31, 38, 135, 0.25)'
               }}>
                 <h4 className={`text-${section.color} mb-3`} style={{ fontWeight: '600' }}>
                   <i className={`bi bi-${section.icon} me-2`}></i>
@@ -546,12 +746,12 @@ export default function Results({ data }) {
         </div>
 
         {/* HR Action Items */}
-        <div className="glassmorphism p-4 mb-4" style={{
-          background: 'rgba(255, 255, 255, 0.12)',
-          backdropFilter: 'blur(10px)',
+        <div className="glassmorphism p-5 mb-5" style={{
+          background: 'rgba(255, 255, 255, 0.15)',
+          backdropFilter: 'blur(15px)',
           border: '1px solid rgba(255, 255, 255, 0.2)',
-          borderRadius: '12px',
-          boxShadow: '0 4px 16px 0 rgba(31, 38, 135, 0.2)'
+          borderRadius: '16px',
+          boxShadow: '0 8px 25px 0 rgba(31, 38, 135, 0.25)'
         }}>
           <h4 className="text-white mb-4" style={{ fontWeight: '600' }}>
             <i className="bi bi-clipboard-check-fill me-2"></i>
@@ -630,12 +830,12 @@ export default function Results({ data }) {
         </div>
 
         {/* Skills Breakdown */}
-        <div className="glassmorphism p-4 mb-4" style={{
-          background: 'rgba(255, 255, 255, 0.12)',
-          backdropFilter: 'blur(10px)',
+        <div className="glassmorphism p-5 mb-5" style={{
+          background: 'rgba(255, 255, 255, 0.15)',
+          backdropFilter: 'blur(15px)',
           border: '1px solid rgba(255, 255, 255, 0.2)',
-          borderRadius: '12px',
-          boxShadow: '0 4px 16px 0 rgba(31, 38, 135, 0.2)'
+          borderRadius: '16px',
+          boxShadow: '0 8px 25px 0 rgba(31, 38, 135, 0.25)'
         }}>
           <h4 className="text-white mb-4" style={{ fontWeight: '600' }}>
             <i className="bi bi-tags-fill me-2"></i>
@@ -664,7 +864,7 @@ export default function Results({ data }) {
         </div>
 
         {/* Enhanced Download Section */}
-        <div className="text-center">
+        <div className="text-center mt-5">
           <button
             onClick={handleDownload}
             disabled={isGeneratingPDF}
@@ -673,7 +873,7 @@ export default function Results({ data }) {
               borderRadius: '25px',
               fontWeight: '600',
               fontSize: '1.1rem',
-              boxShadow: '0 4px 15px rgba(40, 167, 69, 0.3)',
+              boxShadow: '0 4px 15px rgba(30, 58, 138, 0.3)',
               transition: 'all 0.3s ease',
               opacity: isGeneratingPDF ? 0.7 : 1,
               cursor: isGeneratingPDF ? 'not-allowed' : 'pointer',

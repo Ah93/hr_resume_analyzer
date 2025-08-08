@@ -255,7 +255,7 @@ export default function ResumeUploader({ setResumeText, jd, setJd, setCurrentSte
       {/* Drag & Drop Zone */}
       <div
         className={`border-3 border-dashed rounded-4 p-5 text-center position-relative transition-all ${
-          dragActive ? 'border-info bg-info bg-opacity-10' : 'border-light bg-white bg-opacity-10'
+          dragActive ? 'border-primary bg-primary bg-opacity-10' : 'border-light bg-white bg-opacity-10'
         }`}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
@@ -264,7 +264,7 @@ export default function ResumeUploader({ setResumeText, jd, setJd, setCurrentSte
         style={{ minHeight: '200px' }}
       >
         <div className="d-flex flex-column align-items-center justify-content-center h-100">
-          <i className={`bi bi-cloud-arrow-up display-1 mb-3 ${dragActive ? 'text-info' : 'text-white-50'}`}></i>
+          <i className={`bi bi-cloud-arrow-up display-1 mb-3 ${dragActive ? 'text-primary' : 'text-white-50'}`}></i>
           <h5 className="text-white mb-3">
             {dragActive ? 'Drop your resume here!' : 'Upload Resume'}
           </h5>

@@ -16,15 +16,15 @@ export default function Home() {
     const style = document.createElement('style');
     style.textContent = `
       .glassmorphism {
-        background: rgba(255, 255, 255, 0.25);
-        backdrop-filter: blur(10px);
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(15px);
         border-radius: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 8px 32px 0 rgba(30, 58, 138, 0.4);
       }
       
       .gradient-bg {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 25%, #3b82f6 50%, #1e40af 75%, #1e3a8a 100%);
         min-height: 100vh;
       }
       
@@ -60,13 +60,13 @@ export default function Home() {
       }
       
       .step-indicator.active {
-        background: linear-gradient(45deg, #007bff, #0056b3);
+        background: linear-gradient(45deg, #3b82f6, #1e40af);
         color: white;
         transform: scale(1.1);
       }
       
       .step-indicator.completed {
-        background: linear-gradient(45deg, #28a745, #20c997);
+        background: linear-gradient(45deg, #10b981, #059669);
         color: white;
       }
       
@@ -309,7 +309,7 @@ export default function Home() {
                 }`}
                 style={{ 
                   borderRadius: '50px',
-                  background: loading || !resumeText ? undefined : 'linear-gradient(45deg, #007bff, #0056b3)',
+                  background: loading || !resumeText ? undefined : 'linear-gradient(45deg, #3b82f6, #1e40af)',
                   border: 'none',
                   letterSpacing: '1px'
                 }}
